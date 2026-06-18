@@ -1,0 +1,22 @@
+{
+	"name": "ADESourceGit",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_Github",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "HttpServerLocation",
+				"relativeUrl": "primani27/AzureDataFactoryFiles"
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": []
+	}
+}
