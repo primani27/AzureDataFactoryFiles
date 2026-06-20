@@ -1,0 +1,25 @@
+{
+	"name": "TriggerPipelineSalesTransformation",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "ADE_Pipeline_SalesFiles",
+					"type": "PipelineReference"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Minute",
+				"interval": 10,
+				"startTime": "2026-06-20T05:05:00",
+				"endTime": "2026-06-20T05:20:00",
+				"timeZone": "India Standard Time"
+			}
+		}
+	}
+}
