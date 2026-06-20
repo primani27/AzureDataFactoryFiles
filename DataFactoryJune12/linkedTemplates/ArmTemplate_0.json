@@ -255,6 +255,218 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/DEstinationETLDL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureDL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "DataTransformation",
+						"fileSystem": "reporting"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureDL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/DF_SourceDL')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "LS_AzureDL",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "SalesFile",
+						"fileSystem": "reporting"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/LS_AzureDL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/PipelineSalesOnly')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "ADE_CopyFile",
+						"type": "Copy",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "DelimitedTextSource",
+								"storeSettings": {
+									"type": "HttpReadSettings",
+									"requestMethod": "GET"
+								},
+								"formatSettings": {
+									"type": "DelimitedTextReadSettings"
+								}
+							},
+							"sink": {
+								"type": "DelimitedTextSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "DelimitedTextWriteSettings",
+									"quoteAllText": true,
+									"fileExtension": ".txt"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "ADESourceGit",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "ADE_DestinationDL",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/ADESourceGit')]",
+				"[concat(variables('factoryId'), '/datasets/ADE_DestinationDL')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ADE_DFSource')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "DF_SourceDL",
+								"type": "DatasetReference"
+							},
+							"name": "ADEDFSource"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DEstinationETLDL",
+								"type": "DatasetReference"
+							},
+							"name": "ADEETLDestination"
+						}
+					],
+					"transformations": [
+						{
+							"name": "SelectColumn"
+						},
+						{
+							"name": "SelectRowsWhereFilter"
+						},
+						{
+							"name": "SplitDate1"
+						},
+						{
+							"name": "SumAggregrate"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          {Sales Person} as string,",
+						"          Geo as string,",
+						"          Product as string,",
+						"          Ship_Date as date,",
+						"          Amount as short,",
+						"          Boxes as short",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     ignoreNoFilesFound: false) ~> ADEDFSource",
+						"ADEDFSource select(mapColumn(",
+						"          {Sales Person},",
+						"          Product,",
+						"          Ship_Date,",
+						"          Boxes",
+						"     ),",
+						"     skipDuplicateMapInputs: false,",
+						"     skipDuplicateMapOutputs: false) ~> SelectColumn",
+						"SelectColumn filter({Sales Person} != 'SP01') ~> SelectRowsWhereFilter",
+						"SelectRowsWhereFilter split(Ship_Date==toDate('04-07-2022','dd-MM-yyyy'),",
+						"     Ship_Date==toDate('05-07-2022','dd-MM-yyyy'),",
+						"     disjoint: false) ~> SplitDate1@(Date1, Date2)",
+						"SplitDate1@Date1 aggregate(groupBy({Sales Person}),",
+						"     Boxes = sum(Boxes)) ~> SumAggregrate",
+						"SumAggregrate sink(allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     umask: 0022,",
+						"     preCommands: [],",
+						"     postCommands: [],",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true) ~> ADEETLDestination"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/DF_SourceDL')]",
+				"[concat(variables('factoryId'), '/datasets/DEstinationETLDL')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/ADE_Pipeline_SalesFiles')]",
 			"type": "Microsoft.DataFactory/factories/pipelines",
 			"apiVersion": "2018-06-01",
@@ -396,29 +608,18 @@
 								}
 							]
 						}
-					}
-				],
-				"policy": {
-					"elapsedTimeMetric": {}
-				},
-				"annotations": []
-			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/datasets/ADE_SourceDLgetFilelist')]",
-				"[concat(variables('factoryId'), '/datasets/ADE_SalesCopy')]",
-				"[concat(variables('factoryId'), '/datasets/ADE_DLDestinationSales')]"
-			]
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/PipelineSalesOnly')]",
-			"type": "Microsoft.DataFactory/factories/pipelines",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"activities": [
+					},
 					{
-						"name": "ADE_CopyFile",
-						"type": "Copy",
-						"dependsOn": [],
+						"name": "ADE_DataTransformation_ETL",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "ForEachsalesFile",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
 						"policy": {
 							"timeout": "0.12:00:00",
 							"retry": 0,
@@ -428,51 +629,22 @@
 						},
 						"userProperties": [],
 						"typeProperties": {
-							"source": {
-								"type": "DelimitedTextSource",
-								"storeSettings": {
-									"type": "HttpReadSettings",
-									"requestMethod": "GET"
-								},
-								"formatSettings": {
-									"type": "DelimitedTextReadSettings"
+							"dataflow": {
+								"referenceName": "ADE_DFSource",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"ADEDFSource": {},
+									"ADEETLDestination": {}
 								}
 							},
-							"sink": {
-								"type": "DelimitedTextSink",
-								"storeSettings": {
-									"type": "AzureBlobFSWriteSettings"
-								},
-								"formatSettings": {
-									"type": "DelimitedTextWriteSettings",
-									"quoteAllText": true,
-									"fileExtension": ".txt"
-								}
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
 							},
-							"enableStaging": false,
-							"translator": {
-								"type": "TabularTranslator",
-								"typeConversion": true,
-								"typeConversionSettings": {
-									"allowDataTruncation": true,
-									"treatBooleanAsNumber": false
-								}
-							}
-						},
-						"inputs": [
-							{
-								"referenceName": "ADESourceGit",
-								"type": "DatasetReference",
-								"parameters": {}
-							}
-						],
-						"outputs": [
-							{
-								"referenceName": "ADE_DestinationDL",
-								"type": "DatasetReference",
-								"parameters": {}
-							}
-						]
+							"traceLevel": "Fine"
+						}
 					}
 				],
 				"policy": {
@@ -481,8 +653,10 @@
 				"annotations": []
 			},
 			"dependsOn": [
-				"[concat(variables('factoryId'), '/datasets/ADESourceGit')]",
-				"[concat(variables('factoryId'), '/datasets/ADE_DestinationDL')]"
+				"[concat(variables('factoryId'), '/datasets/ADE_SourceDLgetFilelist')]",
+				"[concat(variables('factoryId'), '/dataflows/ADE_DFSource')]",
+				"[concat(variables('factoryId'), '/datasets/ADE_SalesCopy')]",
+				"[concat(variables('factoryId'), '/datasets/ADE_DLDestinationSales')]"
 			]
 		}
 	]
