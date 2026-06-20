@@ -1,0 +1,37 @@
+{
+	"name": "ADE_DFSource1",
+	"properties": {
+		"type": "Flowlet",
+		"typeProperties": {
+			"sources": [],
+			"sinks": [],
+			"transformations": [
+				{
+					"name": "SplitDate1"
+				},
+				{
+					"name": "ADEDFSource"
+				},
+				{
+					"name": "input1"
+				}
+			],
+			"scriptLines": [
+				"input(output(",
+				"          {Sales Person} as string,",
+				"          Geo as string,",
+				"          Product as string,",
+				"          Ship_Date as date,",
+				"          Amount as short,",
+				"          Boxes as short",
+				"     ),",
+				"     order: 0,",
+				"     allowSchemaDrift: true) ~> ADEDFSource",
+				"input(order: 1,",
+				"     allowSchemaDrift: true) ~> input1",
+				"ADEDFSource split(Ship_Date==toDate('04-07-2022','dd-MM-yyyy'),",
+				"     disjoint: false) ~> SplitDate1@(Date1)"
+			]
+		}
+	}
+}
