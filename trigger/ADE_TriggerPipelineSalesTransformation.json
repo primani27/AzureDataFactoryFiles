@@ -1,5 +1,5 @@
 {
-	"name": "TriggerPipelineSalesTransformation",
+	"name": "ADE_TriggerPipelineSalesTransformation",
 	"properties": {
 		"annotations": [],
 		"runtimeState": "Stopped",
